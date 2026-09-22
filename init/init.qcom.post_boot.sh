@@ -821,8 +821,16 @@ function configure_zram_parameters() {
         memory_profile=`getprop ro.vendor.op6.kernel.memory_profile`
     fi
     if [ -z "$memory_profile" ]; then
-        memory_profile="balanced"
+        memory_profile="auto"
     fi
+    if [ "$memory_profile" = "auto" ]; then
+        if [ $RamSizeGB -ge 8 ]; then
+            memory_profile="compact"
+        else
+            memory_profile="balanced"
+        fi
+    fi
+    setprop vendor.op6.kernel.memory_profile.active "$memory_profile"
 
     diskSizeUnit=M
 
@@ -842,6 +850,14 @@ function configure_zram_parameters() {
             zRamCapMB=6144
             zram_comp="zstd"
             zram_dedup=1
+            ;;
+        "compact")
+            # 8GB OP6 default: keep swap headroom without preallocating RAM.
+            # Frozen cached apps are expected to be reclaimed into zram.
+            let zRamSizeMB="( $RamSizeGB * 1024 ) / 2"
+            zRamCapMB=4096
+            zram_comp="lz4kd"
+            zram_dedup=0
             ;;
         *)
             let zRamSizeMB="( $RamSizeGB * 1024 ) / 2"
@@ -6165,9 +6181,9 @@ esac
 
 
 # OP6 ROM memory policy.
-op6_memory_profile=`getprop persist.vendor.op6.kernel.memory_profile`
+op6_memory_profile=`getprop vendor.op6.kernel.memory_profile.active`
 if [ -z "$op6_memory_profile" ]; then
-    op6_memory_profile=`getprop ro.vendor.op6.kernel.memory_profile`
+    op6_memory_profile=`getprop persist.vendor.op6.kernel.memory_profile`
 fi
 if [ -z "$op6_memory_profile" ]; then
     op6_memory_profile="balanced"
@@ -6179,6 +6195,12 @@ case "$op6_memory_profile" in
         ;;
     "memory")
         echo 100 > /proc/sys/vm/swappiness
+        ;;
+    "compact")
+        echo 100 > /proc/sys/vm/swappiness
+        if [ -e /proc/sys/vm/vfs_cache_pressure ]; then
+            echo 120 > /proc/sys/vm/vfs_cache_pressure
+        fi
         ;;
     *)
         echo 100 > /proc/sys/vm/swappiness
