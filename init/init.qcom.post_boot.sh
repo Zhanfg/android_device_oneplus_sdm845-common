@@ -6216,3 +6216,25 @@ fi
 # turning UFS into a persistent swap backing device and increasing write wear.
 setprop vendor.op6.kernel.zram_writeback.available \
     `[ -e /sys/block/zram0/backing_dev ] && echo 1 || echo 0`
+
+
+# OP6 freezer capability reporting.
+# These are runtime capability flags, not feature-forcing switches.
+if [ -e /sys/fs/cgroup/cgroup.freeze ]; then
+    setprop vendor.op6.kernel.freezer.cgroup2 1
+else
+    setprop vendor.op6.kernel.freezer.cgroup2 0
+fi
+
+if [ -e /sys/fs/cgroup/system/memory.reclaim ]; then
+    setprop vendor.op6.kernel.freezer.reclaim 1
+else
+    setprop vendor.op6.kernel.freezer.reclaim 0
+fi
+
+if [ -d /proc/rekernel ]; then
+    setprop vendor.op6.kernel.freezer.rekernel 1
+else
+    # Re:Kernel creates its proc endpoint lazily; 0 here means not observed yet.
+    setprop vendor.op6.kernel.freezer.rekernel 0
+fi
