@@ -197,3 +197,7 @@ vendor.usb.use_gadget_hal=0
 
 # Zygote
 zygote.critical_window.minute=10
+
+# OP6 ROM/kernel integration
+ro.vendor.op6.kernel.stack=ngki419
+ro.vendor.op6.kernel.net_profile=balanced
