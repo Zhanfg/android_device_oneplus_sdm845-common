@@ -814,45 +814,70 @@ KernelVersionB=${KernelVersionS%.*}
 function configure_zram_parameters() {
     MemTotalStr=`cat /proc/meminfo | grep MemTotal`
     MemTotal=${MemTotalStr:16:8}
-
-    low_ram=`getprop ro.config.low_ram`
-
-    # Zram disk - 75% for Go devices.
-    # For 512MB Go device, size = 384MB, set same for Non-Go.
-    # For 1GB Go device, size = 768MB, set same for Non-Go.
-    # For 2GB Go device, size = 1536MB, set same for Non-Go.
-    # For >2GB Non-Go devices, size = 50% of RAM size. Limit the size to 4GB.
-    # And enable lz4 zram compression for Go targets.
-
     let RamSizeGB="( $MemTotal / 1048576 ) + 1"
+
+    memory_profile=`getprop persist.vendor.op6.kernel.memory_profile`
+    if [ -z "$memory_profile" ]; then
+        memory_profile=`getprop ro.vendor.op6.kernel.memory_profile`
+    fi
+    if [ -z "$memory_profile" ]; then
+        memory_profile="balanced"
+    fi
+
     diskSizeUnit=M
-    if [ $RamSizeGB -le 2 ]; then
-        let zRamSizeMB="( $RamSizeGB * 1024 ) * 3 / 4"
-    else
-        let zRamSizeMB="( $RamSizeGB * 1024 ) / 2"
-    fi
 
-    # use MB avoid 32 bit overflow
-    if [ $zRamSizeMB -gt 4096 ]; then
-        let zRamSizeMB=4096
-    fi
+    # OP6-specific ZRAM policy:
+    # - latency: smaller swap, lowest compression overhead
+    # - balanced: 50% RAM, LZ4KD preferred
+    # - memory: larger swap, ratio-oriented compressor, dedup enabled
+    case "$memory_profile" in
+        "latency")
+            let zRamSizeMB="( $RamSizeGB * 1024 ) * 3 / 8"
+            zRamCapMB=3072
+            zram_comp="lz4"
+            zram_dedup=0
+            ;;
+        "memory")
+            let zRamSizeMB="( $RamSizeGB * 1024 ) * 5 / 8"
+            zRamCapMB=6144
+            zram_comp="zstd"
+            zram_dedup=1
+            ;;
+        *)
+            let zRamSizeMB="( $RamSizeGB * 1024 ) / 2"
+            zRamCapMB=4096
+            zram_comp="lz4kd"
+            zram_dedup=0
+            ;;
+    esac
 
-    if [ "$low_ram" == "true" ]; then
-        echo lz4 > /sys/block/zram0/comp_algorithm
+    if [ $zRamSizeMB -gt $zRamCapMB ]; then
+        let zRamSizeMB=$zRamCapMB
     fi
 
     if [ -f /sys/block/zram0/disksize ]; then
-        if [ -f /sys/block/zram0/use_dedup ]; then
-            echo 1 > /sys/block/zram0/use_dedup
+        if [ -r /sys/block/zram0/comp_algorithm ]; then
+            zram_available=`cat /sys/block/zram0/comp_algorithm`
+            if echo "$zram_available" | grep -qw "$zram_comp"; then
+                echo "$zram_comp" > /sys/block/zram0/comp_algorithm
+            elif echo "$zram_available" | grep -qw lz4kd; then
+                echo lz4kd > /sys/block/zram0/comp_algorithm
+            elif echo "$zram_available" | grep -qw lz4; then
+                echo lz4 > /sys/block/zram0/comp_algorithm
+            fi
         fi
+
+        if [ -f /sys/block/zram0/use_dedup ]; then
+            echo "$zram_dedup" > /sys/block/zram0/use_dedup
+        fi
+
         echo "$zRamSizeMB""$diskSizeUnit" > /sys/block/zram0/disksize
 
-        # ZRAM may use more memory than it saves if SLAB_STORE_USER
-        # debug option is enabled.
-        if [ -e /sys/kernel/slab/zs_handle ]; then
+        # ZRAM may use more memory than it saves if SLAB_STORE_USER is enabled.
+        if [ -e /sys/kernel/slab/zs_handle/store_user ]; then
             echo 0 > /sys/kernel/slab/zs_handle/store_user
         fi
-        if [ -e /sys/kernel/slab/zspage ]; then
+        if [ -e /sys/kernel/slab/zspage/store_user ]; then
             echo 0 > /sys/kernel/slab/zspage/store_user
         fi
 
@@ -6137,3 +6162,35 @@ case "$op6_kernel_net_profile" in
         # Balanced is intentionally conservative until device telemetry exists.
         ;;
 esac
+
+
+# OP6 ROM memory policy.
+op6_memory_profile=`getprop persist.vendor.op6.kernel.memory_profile`
+if [ -z "$op6_memory_profile" ]; then
+    op6_memory_profile=`getprop ro.vendor.op6.kernel.memory_profile`
+fi
+if [ -z "$op6_memory_profile" ]; then
+    op6_memory_profile="balanced"
+fi
+
+case "$op6_memory_profile" in
+    "latency")
+        echo 80 > /proc/sys/vm/swappiness
+        ;;
+    "memory")
+        echo 100 > /proc/sys/vm/swappiness
+        ;;
+    *)
+        echo 100 > /proc/sys/vm/swappiness
+        ;;
+esac
+
+# ZRAM is random-access compressed swap; swap readahead is counterproductive.
+if [ -e /proc/sys/vm/page-cluster ]; then
+    echo 0 > /proc/sys/vm/page-cluster
+fi
+
+# ZRAM writeback support is compiled in, but remains opt-in to avoid silently
+# turning UFS into a persistent swap backing device and increasing write wear.
+setprop vendor.op6.kernel.zram_writeback.available \
+    `[ -e /sys/block/zram0/backing_dev ] && echo 1 || echo 0`
