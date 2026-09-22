@@ -6092,3 +6092,48 @@ esac
 misc_link=$(ls -l /dev/block/bootdevice/by-name/misc)
 real_path=${misc_link##*>}
 setprop persist.vendor.mmi.misc_dev_path $real_path
+
+
+# OP6 ROM/kernel integration layer.
+# Keep this after Qualcomm post-boot tuning so ROM policy wins deterministically.
+op6_kernel_net_profile=`getprop persist.vendor.op6.kernel.net_profile`
+if [ -z "$op6_kernel_net_profile" ]; then
+    op6_kernel_net_profile=`getprop ro.vendor.op6.kernel.net_profile`
+fi
+if [ -z "$op6_kernel_net_profile" ]; then
+    op6_kernel_net_profile="balanced"
+fi
+
+# BBRv3 keeps the userspace algorithm name "bbr". Only select it when the
+# running kernel actually advertises it, so recovery/legacy kernels still boot.
+if [ -r /proc/sys/net/ipv4/tcp_available_congestion_control ] && \
+   grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control; then
+    echo bbr > /proc/sys/net/ipv4/tcp_congestion_control
+fi
+
+# Linux 4.19 benefits from fq pacing for BBR. Do not fail boot on a kernel
+# variant that lacks the qdisc sysctl.
+if [ -e /proc/sys/net/core/default_qdisc ]; then
+    echo fq > /proc/sys/net/core/default_qdisc
+fi
+
+case "$op6_kernel_net_profile" in
+    "latency")
+        # Keep userspace write queues shallow when the kernel supports it.
+        if [ -e /proc/sys/net/ipv4/tcp_notsent_lowat ]; then
+            echo 16384 > /proc/sys/net/ipv4/tcp_notsent_lowat
+        fi
+        ;;
+    "proxy")
+        # Preserve fwmark-based reverse-path lookups used by TProxy/VPN stacks.
+        if [ -e /proc/sys/net/ipv4/conf/all/src_valid_mark ]; then
+            echo 1 > /proc/sys/net/ipv4/conf/all/src_valid_mark
+        fi
+        ;;
+    "throughput")
+        # Leave TCP buffering autotuning in charge; BBRv3 + fq is the policy.
+        ;;
+    *)
+        # Balanced is intentionally conservative until device telemetry exists.
+        ;;
+esac
