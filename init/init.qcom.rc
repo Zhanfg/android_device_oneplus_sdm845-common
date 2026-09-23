@@ -55,12 +55,9 @@ on init
     symlink /sdcard /mnt/sdcard
     symlink /sdcard /storage/sdcard0
 
-    # Create cgroup mount point for memory
-    mkdir /sys/fs/cgroup/memory/bg 0750 root system
-    write /sys/fs/cgroup/memory/bg/memory.swappiness 140
-    write /sys/fs/cgroup/memory/bg/memory.move_charge_at_immigrate 1
-    chown root system /sys/fs/cgroup/memory/bg/tasks
-    chmod 0660 /sys/fs/cgroup/memory/bg/tasks
+    # Android 17 uses libprocessgroup's unified cgroup v2 memory/freezer
+    # hierarchy at /sys/fs/cgroup. Do not recreate the legacy v1 memory/bg
+    # group here; it would bypass Memory Limiter and CachedAppOptimizer.
 
 on early-boot
     # set RLIMIT_MEMLOCK to 64MB
