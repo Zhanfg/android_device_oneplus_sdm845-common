@@ -1,0 +1,70 @@
+{
+  "Profiles": [
+    {
+      "Name": "OP6UClampBackground",
+      "Actions": [
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMin", "Value": "0" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMax", "Value": "60" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampLatencySensitive", "Value": "0" } }
+      ]
+    },
+    {
+      "Name": "OP6UClampForeground",
+      "Actions": [
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMin", "Value": "5" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMax", "Value": "max" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampLatencySensitive", "Value": "1" } }
+      ]
+    },
+    {
+      "Name": "OP6UClampForegroundWindow",
+      "Actions": [
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMin", "Value": "8" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMax", "Value": "max" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampLatencySensitive", "Value": "1" } }
+      ]
+    },
+    {
+      "Name": "OP6UClampTopApp",
+      "Actions": [
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMin", "Value": "12" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMax", "Value": "max" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampLatencySensitive", "Value": "1" } }
+      ]
+    },
+    {
+      "Name": "OP6UClampSystem",
+      "Actions": [
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMin", "Value": "0" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampMax", "Value": "80" } },
+        { "Name": "SetAttribute", "Params": { "Name": "UClampLatencySensitive", "Value": "0" } }
+      ]
+    }
+  ],
+  "AggregateProfiles": [
+    {
+      "Name": "SCHED_SP_BACKGROUND",
+      "Profiles": [ "HighEnergySaving", "LowIoPriority", "TimerSlackHigh", "OP6UClampBackground" ]
+    },
+    {
+      "Name": "SCHED_SP_FOREGROUND",
+      "Profiles": [ "HighPerformance", "HighIoPriority", "TimerSlackNormal", "OP6UClampForeground" ]
+    },
+    {
+      "Name": "SCHED_SP_FOREGROUND_WINDOW",
+      "Profiles": [ "HighPerformanceWI", "HighIoPriority", "TimerSlackNormal", "OP6UClampForegroundWindow" ]
+    },
+    {
+      "Name": "SCHED_SP_TOP_APP",
+      "Profiles": [ "MaxPerformance", "MaxIoPriority", "TimerSlackNormal", "OP6UClampTopApp" ]
+    },
+    {
+      "Name": "SCHED_SP_SYSTEM",
+      "Profiles": [ "ServicePerformance", "LowIoPriority", "TimerSlackNormal", "OP6UClampSystem" ]
+    },
+    {
+      "Name": "InputPolicy",
+      "Profiles": [ "RealTimeInputScheduling", "MaxPerformance", "ProcessCapacityMax", "TimerSlackNormal", "OP6UClampTopApp" ]
+    }
+  ]
+}
