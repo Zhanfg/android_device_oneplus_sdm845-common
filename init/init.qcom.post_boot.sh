@@ -2574,7 +2574,8 @@ case "$target" in
             echo 0-3 > /dev/cpuset/background/cpus
             echo 0-3 > /dev/cpuset/system-background/cpus
             # choose idle CPU for top app tasks
-            echo 1 > /dev/stune/top-app/schedtune.prefer_idle
+            # Android 17 top-app latency sensitivity is handled by
+            # /vendor/etc/task_profiles.json through cpu.uclamp.latency_sensitive.
 
             # re-enable thermal & BCL core_control now
             echo 1 > /sys/module/msm_thermal/core_control/enabled
@@ -6237,4 +6238,13 @@ if [ -d /proc/rekernel ]; then
 else
     # Re:Kernel creates its proc endpoint lazily; 0 here means not observed yet.
     setprop vendor.op6.kernel.freezer.rekernel 0
+fi
+
+
+# OP6 Android 17 scheduler capability reporting.
+if [ -e /dev/cpuctl/top-app/cpu.uclamp.min ] && \
+   [ -e /dev/cpuctl/top-app/cpu.uclamp.max ]; then
+    setprop vendor.op6.kernel.sched.uclamp 1
+else
+    setprop vendor.op6.kernel.sched.uclamp 0
 fi
