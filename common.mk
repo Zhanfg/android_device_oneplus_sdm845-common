@@ -310,6 +310,7 @@ PRODUCT_COPY_FILES += \
 # Soong namespaces
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH) \
+    external/jamesdsp-android \
     hardware/oneplus \
     vendor/qcom/opensource/usb/etc
 
